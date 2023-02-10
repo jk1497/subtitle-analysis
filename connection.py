@@ -1,0 +1,145 @@
+import pandas as pd
+import os
+import requests
+from os import listdir
+from os.path import isfile, join
+
+f = open(".credentials", "r")
+credentials = f.read().splitlines()
+f.close() 
+
+username = credentials[0]
+password = credentials[1]
+api_key = credentials[2]
+
+def login(username,password,api_key):
+
+    url = "https://api.opensubtitles.com/api/v1/login"
+
+    payload = {
+        "username": username,
+        "password": password
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Api-Key": api_key
+    }
+
+    response = requests.request("POST", url, json=payload, headers=headers)
+
+    print(response.text)
+
+def get_subtitle_id(imdb_id,api_key):
+    url = "https://api.opensubtitles.com/api/v1/subtitles"
+    languages = 'ja'
+    order_by = 'download_count'
+    order_direction = 'desc'
+
+    headers = {
+        "Content-Type": "application/json",
+        "Api-Key": api_key
+    }
+    querystring = {
+        "imdb_id":imdb_id,
+        "languages":languages,
+        "order_by":order_by,
+        "order_direction":order_direction
+    }
+
+    response = requests.request("GET", url, headers=headers,params=querystring)
+    my_json = response.json()
+
+    if bool(my_json['data']):
+        subtitle_id = int(my_json['data'][0]["attributes"]["files"][0]["file_id"])
+        return subtitle_id
+    else:
+        return 0
+
+def get_download_url(imdb_id,api_key):
+    url = "https://api.opensubtitles.com/api/v1/download"
+
+    payload = {
+        "file_id": imdb_id
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Api-Key": api_key
+    }
+
+    response = requests.request("POST", url, json=payload, headers=headers)
+    my_json = response.json()
+    link = my_json['link']
+
+    return(link)
+
+def download_subs():
+
+    output_directory = '/Users/jonny/Developer/SRT_Analysis/subtitles'
+
+    filelist = [f for f in listdir(output_directory) if isfile(join(output_directory, f))]
+
+    filelistbrief = []
+
+    for i in filelist:
+        filelistbrief.append(i[0:9].lstrip('t').lstrip('0'))
+
+    movies_df = pd.read_csv('moviedb.csv')
+
+    # movies_dict = data = {  'title': [],
+    #                         'imdb_id': [],
+    #                         'imdb_id_trim': []}
+
+    id_list = []
+
+    for i in movies_df.index:
+        id_list.append(movies_df['imdb_id'][i].lstrip('t').lstrip('0'))
+
+    movies_df['imdb_id_trim'] = id_list
+
+    counter_pass = 0
+    counter_fail = 0
+
+    for i in movies_df.index:
+        try:
+            subtitle_id = get_subtitle_id(movies_df.at[i, 'imdb_id_trim'],api_key)
+        except:
+            subtitle_id = 0
+
+        curr_id = movies_df.at[i, 'imdb_id_trim']
+
+        # Create a file path by joining the directory name with the desired file name
+        file_path = os.path.join(output_directory, f"{movies_df.at[i, 'imdb_id']}_{movies_df.at[i, 'title']}.srt")
+
+        # print(curr_id)
+        # print(curr_id in filelist)
+
+        if curr_id in filelistbrief:
+            print(f"i = {i}: File already exists for {movies_df.at[i,'title']}")
+        elif subtitle_id != 0: 
+            try:
+                my_url = get_download_url(subtitle_id,api_key)
+                response = requests.get(my_url)
+                with open(file_path, 'wb') as output:
+                    output.write(response.content)
+                # open(f"{movies_df.at[i, 'imdb_id']}_{movies_df.at[i, 'title']}.srt", "wb").write(response.content)
+                print(f"i = {i}: Download successful for {movies_df.at[i,'title']}")
+                counter_pass+=1
+            except:
+                counter_fail+=1
+        else:
+            print(f"i = {i}: No subtitle ID for {movies_df.at[i, 'title']}")
+            counter_fail+=1
+
+    print(f"Number of passes {counter_pass}")
+    print(f"Number of fails {counter_fail}")
+    print(f"Pass rate {round(counter_pass/counter_fail,2)}")
+    
+
+
+
+# login(username=username,password=password,api_key=api_key)
+download_subs()
+
+
+
+
