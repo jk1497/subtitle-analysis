@@ -12,6 +12,16 @@ username = credentials[0]
 password = credentials[1]
 api_key = credentials[2]
 
+# define appropriate language code, first pass of analysis is for Japanese films, languages = 'ja'
+languages = 'ja'
+
+# connection.py attempts to download a subtitle file for every relevent film:
+#     1. login() into opensubtitles API with credentials
+#     2. download_subs() reads the movies with their imdb id from moviedb.csv
+#     3. get_subtitle_id() takes the imdb id and checks the api for a subtitle file with matching opensubs id, the opensubs id is returned
+#     4. download_subs() checks if a subtitle file has already been downloaded for that movie in the directory, if a file doesn't exist yet, 
+#        get_download_url() returns a url for the file and it is downloaded.
+
 def login(username,password,api_key):
 
     url = "https://api.opensubtitles.com/api/v1/login"
@@ -31,7 +41,6 @@ def login(username,password,api_key):
 
 def get_subtitle_id(imdb_id,api_key):
     url = "https://api.opensubtitles.com/api/v1/subtitles"
-    languages = 'ja'
     order_by = 'download_count'
     order_direction = 'desc'
 
@@ -55,11 +64,11 @@ def get_subtitle_id(imdb_id,api_key):
     else:
         return 0
 
-def get_download_url(imdb_id,api_key):
+def get_download_url(subtitle_id,api_key):
     url = "https://api.opensubtitles.com/api/v1/download"
 
     payload = {
-        "file_id": imdb_id
+        "file_id": subtitle_id
     }
     headers = {
         "Content-Type": "application/json",
@@ -85,19 +94,12 @@ def download_subs():
 
     movies_df = pd.read_csv('moviedb.csv')
 
-    # movies_dict = data = {  'title': [],
-    #                         'imdb_id': [],
-    #                         'imdb_id_trim': []}
-
     id_list = []
 
     for i in movies_df.index:
         id_list.append(movies_df['imdb_id'][i].lstrip('t').lstrip('0'))
 
     movies_df['imdb_id_trim'] = id_list
-
-    counter_pass = 0
-    counter_fail = 0
 
     for i in movies_df.index:
         try:
@@ -110,9 +112,6 @@ def download_subs():
         # Create a file path by joining the directory name with the desired file name
         file_path = os.path.join(output_directory, f"{movies_df.at[i, 'imdb_id']}_{movies_df.at[i, 'title']}.srt")
 
-        # print(curr_id)
-        # print(curr_id in filelist)
-
         if curr_id in filelistbrief:
             print(f"i = {i}: File already exists for {movies_df.at[i,'title']}")
         elif subtitle_id != 0: 
@@ -121,23 +120,12 @@ def download_subs():
                 response = requests.get(my_url)
                 with open(file_path, 'wb') as output:
                     output.write(response.content)
-                # open(f"{movies_df.at[i, 'imdb_id']}_{movies_df.at[i, 'title']}.srt", "wb").write(response.content)
                 print(f"i = {i}: Download successful for {movies_df.at[i,'title']}")
                 counter_pass+=1
             except:
-                counter_fail+=1
-        else:
-            print(f"i = {i}: No subtitle ID for {movies_df.at[i, 'title']}")
-            counter_fail+=1
-
-    print(f"Number of passes {counter_pass}")
-    print(f"Number of fails {counter_fail}")
-    print(f"Pass rate {round(counter_pass/counter_fail,2)}")
-    
-
-
-
-# login(username=username,password=password,api_key=api_key)
+                print(f"i = {i}: No subtitle ID for {movies_df.at[i, 'title']}")
+            
+login(username=username,password=password,api_key=api_key)
 download_subs()
 
 

@@ -1,7 +1,11 @@
 import pandas as pd
 
+# consolodate_genre.py takes list of orignal list of movies with their genres and the new tokenized text with wordcount,
+# it merges the two dataframes together and consolidates them in one large dataframe. 
+# This dataframe has spereate rows for every word from every film in every genre.
+
 movies_db = pd.read_csv('moviedb.csv')
-movies_analysis = pd.read_csv('output.csv')
+movies_analysis = pd.read_csv('token_output.csv')
 
 movies_analysis = movies_analysis.drop("Unnamed: 0",axis=1)
 
@@ -13,8 +17,6 @@ new_df = pd.merge(  movies_analysis,
 new_df_all_genres = pd.DataFrame(columns = ["title","word","count",'imdb_id','original_title','popularity','release_date','genre'])
 
 GENRE_TOTAL = 7
-
-# test_df = new_df.head(100)
 
 for i in new_df.index:
     genre_count = 1
@@ -29,12 +31,11 @@ for i in new_df.index:
                                         "release_date":[new_df.iloc[i]["release_date"]],
                                         "genre":[new_df.iloc[i][f"Genre_{genre_count}"]]
             })
-            # new_df_all_genres = new_df_all_genres.append(list_row)
             new_df_all_genres = pd.concat([new_df_all_genres,list_row])
         else:
             genre_count = GENRE_TOTAL
         genre_count += 1
     print(f"Consolidating genres... {(i/float(len(new_df.index))*100):.2f}%", end="\r")
 
-new_df_all_genres.to_csv("new_df_all_genres.csv")
+new_df_all_genres.to_csv("all_genres.csv")
 
